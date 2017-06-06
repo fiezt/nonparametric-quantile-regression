@@ -1,0 +1,111 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage[margin=1in,headsep=.2in]{geometry}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{amsfonts}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{color}
+\usepackage[font={small}]{caption}
+\renewcommand{\thesubsection}{\thesection.\alph{subsection}}
+\begin{document}
+
+\title{Project Notes}
+\author{Tanner Fiez}
+\date{}
+\maketitle
+
+\section{Ordinary Cross Validation (Leave one out cross-validation)}
+In leave-one-out cross validation we can compute the error very efficiently for linear models. For these models we can write them as $f = X\beta$, where $X$ is a $n \times p$ design matrix and $\beta$ is a $p \times 1$ parameter vector. Consider a minimization problem of a sum of squares plus a quadratic penalty term with a known matrix $D$
+\begin{equation}
+\sum_{i=1}^n (y_i - x_i \beta)^2 + \lambda \beta^TD\beta.
+\end{equation}
+Fitting the model to $n-1$ points contained in $y_{-i}$ gives the following minimization problem
+\begin{equation}
+\text{}{\text{min}} \sum_{j=1,j\neq1}^n [y_j - f_{-i}(x_j)]^2 + \lambda \beta^TD\beta
+\end{equation}
+which can equivalently be written as 
+\begin{equation}
+\text{}{\text{min}} \sum_{j=1}^n [y_j^\star - f_{-i}(x_j)]^2 + \lambda \beta^TD\beta
+\end{equation}
+where 
+\begin{equation}
+y_j^\star = 
+\begin{cases}
+y_j & \text{if} \ j \neq i \\
+y_i - y_i + f_{-i}(x_i) & \text{if} \ j = i \\
+\end{cases}
+\end{equation}
+Now solving the minimization problem by taking the derivative with respect to $\beta$ and setting it equal to zero.
+\begin{equation}
+\begin{split}
+\frac{\partial}{\partial \beta} \sum_{j=1}^n [y_j^\star - x_j\beta]^2 + \lambda \beta^TD\beta &=  -2 \sum_{j=1}^n (y_j^\star - x_j) + 2\lambda D \beta \\
+\sum_{j=1}^n (-2 x_j^T(y_j^\star - x_j\beta)) + 2\lambda D\beta &= 0 \\
+\sum_{j=1}^n (-x_j^Ty_j^\star + x_j^Tx_j\beta) + \lambda D\beta &= 0 \\
+\sum_{j=1}^n -x_j^Ty_j^\star + \sum_{j=1}^n x_j^Tx_j\beta + \lambda D\beta &= 0 \\
+\sum_{j=1}^n x_j^Tx_j\beta + \lambda D\beta &= \sum_{j=1}^n x_j^Ty_j^\star  \\
+(\sum_{j=1}^n x_j^Tx_j + \lambda D)\beta &= \sum_{j=1}^n x_j^Ty_j^\star  \\
+(X^TX + \lambda D)\beta &= X^TY^\star  \\
+\beta &= (X^TX + \lambda D)^{-1}X^TY^\star  \\
+\end{split}
+\end{equation}
+Hence, the estimator is given by $\hat{f} = X(X^TX + \lambda D)^{-1}X^TY^\star$ which can be written as a linear smoother $\hat{f} = S^{(\lambda)}Y^\star$, where $S^{(\lambda)} = X(X^TX + \lambda D)^{-1}X^T$. Then we have the leave one out cross validation estimate $\hat{f}_{-1}^{(\lambda)}(x_i) = S_i^{(\lambda)}Y^\star$. Now we can move terms around
+\begin{equation}
+\begin{split}
+\hat{f}_{-1}^{(\lambda)}(x_i) &= S_i^{(\lambda)}Y^\star \\
+\hat{f}_{-1}^{(\lambda)}(x_i) & = S_i^{(\lambda)}Y- S_{ii}^{(\lambda)}y_i + S_{ii}^{(\lambda)}\hat{f}_{-i}^{(\lambda)}(x_i) \\  
+\hat{f}_{-1}^{(\lambda)}(x_i) & = \hat{f}^{(\lambda)}(x_i) - S_{ii}^{(\lambda)}y_i + S_{ii}^{(\lambda)}\hat{f}_{-1}^{(\lambda)}(x_i) \\
+\hat{f}_{-1}^{(\lambda)}(x_i) - S_{ii}^{(\lambda)}\hat{f}_{-1}^{(\lambda)}(x_i) & = \hat{f}^{(\lambda)}(x_i) - S_{ii}^{(\lambda)}y_i \\
+\hat{f}_{-1}^{(\lambda)}(x_i) & = \frac{\hat{f}^{(\lambda)}(x_i) - S_{ii}^{(\lambda)}y_i}{1 - S_{ii}^{(\lambda)}} \\
+\end{split}
+\end{equation}
+Then the error in the estimate is
+\begin{equation}
+y_i - \hat{f}_{-i}^{(\lambda)}(x_i) = \frac{y_i(1 - S_{ii}^{(\lambda)}) - \hat{f}^{(\lambda)}(x_i) + S_{ii}^{(\lambda)}y_i}{1 - S_{ii}^{(\lambda)}} = \frac{y_i - \hat{f}^{(\lambda)}(x_i)}{1 - S_{ii}^{(\lambda)}}.
+\end{equation}
+In LOOCV the complete error is 
+\begin{equation}
+\frac{1}{n}\sum_{i=1}^n[y_i - \hat{f}_{-1}^{(\lambda)}(x_i)]^2
+\end{equation}
+and we can plug in the result that was derived for $y_i - \hat{f}_{-i}^{(\lambda)}(x_i)$ to get 
+\begin{equation}
+\frac{1}{n}\sum_{i=1}^n(\frac{y_i - \hat{f}^{(\lambda)}(x_i)}{1 - S_{ii}^{(\lambda)}})^2.
+\end{equation}
+This result allows us to efficiently compute the LOOCV error since we can use the smoothing matrix to avoid the need to fit $n$ independent models. Instead we simply need to fit one model to get the error.
+\section{Forward-stepwise selection}
+The forward-stepwise selection algorithm is a greedy algorithm for subset selection of features. The advantages of it are the computational efficiency of it, the result will have lower variance. The algorithm works by first starting with the intercept term, and then sequentially adds to the model the feature that improves the fit.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\end{document}
