@@ -1,5 +1,6 @@
 import numpy as np
-
+import multiprocessing
+import functools 
 
 def least_squares(x_train, y_train, x_test, intercept=True):
     """Compute the least squares predictions.
@@ -117,3 +118,111 @@ def forward_stepwise_selection_lm(x, y, q, learning_alg, smoothing_alg):
     x_prime = x_prime[:, 1:]
     
     return x_prime, j_prime
+
+
+def k_means(x, k, num_restarts=15):
+    """K-means++ algorithm for RBF feature creation. 
+    
+    This function calls the k-means++ algorithm with multiple restarts 
+    concurrently and chooses the start that minimized the loss.
+    
+    :param x: Feature space to create the RBF features from.
+    :param k: Integer number of clusters to use for the algorithm.
+    :param num_restarts: Integer number of times to restart the algorithm to 
+    avoid local min. The iteration results that minimized the loss is chosen.
+    
+    :return loss: Final result for the loss function.
+    :return means: Numpy array with each row a centroid of a cluster. 
+    :return bandwidths: Numpy array with each row the selected bandwidth for
+    for the corresponding cluster.
+    """
+    
+    pool = multiprocessing.Pool()
+    
+    func = functools.partial(k_means_alg, x, k)
+    results = pool.map(func, range(num_restarts))    
+    
+    pool.close()
+    pool.join()    
+    
+    loss_results = np.array([result[0] for result in results])
+    best_loss_index = np.argmin(loss_results)
+    
+    loss, means, bandwidths = results[best_loss_index]
+    
+    return loss, means, bandwidths
+
+
+def k_means_alg(x, k, restart_num):
+    """K-means++ algorithm for RBF feature creation. 
+    
+    This function implements the k-means++ algorithm, which is an approach to
+    sproad out the initial cluster centers by choosing a first cluster center at 
+    random, then proceeding to choose centers sampled from the data with 
+    probability proportional to the squared distance to the points existing 
+    closest center.
+    
+    :param x: Feature space to create the RBF features from.
+    :param k: Integer number of clusters to use for the algorithm.
+    :param restart_num: Count of which restart is being called.
+    
+    :return loss: Final result for the loss function.
+    :return means: Numpy array with each row a centroid of a cluster. 
+    :return bandwidths: Numpy array with each row the selected bandwidth for
+    for the corresponding cluster.
+    """
+    
+    n = len(x)
+    
+    # Seed numpy random number generator.
+    np.random.seed()
+    
+    # Choosing the first cluster centroid uniformly at random.
+    init = np.random.choice(range(n), 1, replace=False).tolist()
+    means = x[init]
+    
+    # Choosing the rest of the cluster centroid initializations.
+    for i in range(1,k):
+        
+        # Finding minimum squared distance for each point to an existing center.
+        squared_dists = np.array([[np.linalg.norm(x[j]-means[l])**2 for l in xrange(i)] for j in xrange(n)])
+        dist_mins = squared_dists.min(axis=1)
+        
+        # Sampling with probability proportional to the minimum squared distance.
+        prob_weights = dist_mins/dist_mins.sum()
+        sample = np.random.multinomial(1, prob_weights).tolist()
+        sample_choice = sample.index(1)
+        
+        means = np.vstack((means, x[sample_choice]))
+    
+    # K-means algorithm.
+    old_labels = np.nan * np.zeros(n)
+    converged = False
+    
+    while not converged:
+
+        # Assigning points to clusters.
+        squared_dists = [[np.linalg.norm(x[i]-means[l])**2 for l in xrange(k)] for i in xrange(n)]
+        labels = np.argmin(np.array(squared_dists), axis=1)
+                
+        # Check for convergence, given by no labels changing.
+        if np.array_equal(labels, old_labels):
+            converged = True
+        else:
+            pass
+        
+        old_labels = labels
+            
+        # Recalculating the cluster centroids.
+        means = np.array([x[np.where(labels == i)[0]].mean(axis=0).tolist() for i in xrange(k)])    
+    
+    # Calculating the total loss.
+    squared_dists = [[np.linalg.norm(x[i]-means[l])**2 for l in xrange(k)] for i in xrange(n)]
+    loss = np.array(squared_dists).min(axis=1).sum()
+    
+    # Calculating the bandwidth for RBF features using median trick.
+    bandwidths = [[np.linalg.norm(means[i] - means[j]) for j in xrange(k) if i != j] for i in xrange(k)]
+    bandwidths = np.median(np.array(bandwidths), axis=1).reshape((-1,1))
+    
+    return loss, means, bandwidths
+

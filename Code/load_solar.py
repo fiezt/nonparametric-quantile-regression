@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import multiprocessing
 from natsort import natsorted
-from functools import partial
+import functools
 
 
 def load_data(solar_dir):
@@ -161,9 +161,13 @@ def main():
     
     benchmarks, predictors, train, solutions = load_data(solar_dir)
     
-    # Create the featurized data for each task in parallel.
-    func = partial(featurize_data, predictors, train, solar_dir)
-    multiprocessing.Pool().map(func, range(len(predictors)))    
+    pool = multiprocessing.Pool()
+
+    func = functools.partial(featurize_data, predictors, train, solar_dir)
+    pool.map(func, range(len(predictors)))   
+
+    pool.close()
+    pool.join() 
 
 
 if __name__ == '__main__':
